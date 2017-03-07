@@ -955,7 +955,19 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 				}
 
 				if col.SQLType.Name == "" {
-					col.SQLType = core.Type2SQLType(fieldType)
+
+					if fieldType.Kind() == reflect.Struct {
+
+						hasPrimaryKey, keyType := engine.GetStructKeyType(fieldValue)
+						if hasPrimaryKey {
+							engine.logger.Debug("Got foreign key:", fieldType.Name())
+						}
+
+						col.SQLType = keyType
+					} else {
+						col.SQLType = core.Type2SQLType(fieldType)
+					}
+
 				}
 				engine.dialect.SqlType(col)
 				if col.Length == 0 {
@@ -988,7 +1000,16 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 			if _, ok := fieldValue.Interface().(core.Conversion); ok {
 				sqlType = core.SQLType{Name: core.Text}
 			} else {
-				sqlType = core.Type2SQLType(fieldType)
+				if fieldType.Kind() == reflect.Struct {
+					hasPrimaryKey, keyType := engine.GetStructKeyType(fieldValue)
+					if hasPrimaryKey {
+						engine.logger.Debug("Got foreign key:", fieldType.Name())
+					}
+
+					col.SQLType = keyType
+				} else {
+					col.SQLType = core.Type2SQLType(fieldType)
+				}
 			}
 			col = core.NewColumn(engine.ColumnMapper.Obj2Table(t.Field(i).Name),
 				t.Field(i).Name, sqlType, sqlType.DefaultLength,
@@ -1029,6 +1050,48 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 	}
 
 	return table, nil
+}
+
+// GetStructKeyType searches a reflect.Value representing a struct for primary key fields.
+// Returns true when the struct has exactly one usable primary key value and false otherwise.
+// The SQLType returned will default to type returned by core.Type2SQLType for the struct type.
+func (engine *Engine) GetStructKeyType(fieldValue reflect.Value) (bool, core.SQLType) {
+	fieldType := fieldValue.Type()
+
+	if fieldType.Kind() != reflect.Struct {
+		engine.logger.Error("GetStructKeyType called with non-struct value")
+		return false, core.Type2SQLType(fieldType)
+	}
+
+	if fieldType.PkgPath() == "" {
+		//excludes unnamed structs
+		engine.logger.Debugf("Unnamed struct as reference: %s\n", fieldValue.Type().String())
+		return false, core.Type2SQLType(fieldType)
+	}
+
+	for i := 0; i < fieldType.NumField(); i++ {
+		field := fieldType.Field(i)
+
+		if field.PkgPath != "" {
+			//excludes structs with unexported fields (time.Time, etc.)
+			return false, core.Type2SQLType(fieldType)
+		}
+	}
+
+	//cannot use autoMapType because of map lock
+	fieldTable := engine.mapType(fieldValue)
+
+	if len(fieldTable.PrimaryKeys) == 0 {
+		engine.logger.Warnf("No suitable primary key for struct type '%v', falling back to text column reference.\n", fieldValue.Type().String())
+		return false, core.Type2SQLType(fieldType)
+	}
+
+	if len(fieldTable.PrimaryKeys) > 1 {
+		engine.logger.Warnf("Multiple primary keys for struct type '%v', falling back to text column reference.\n", fieldValue.Type().String())
+		return false, core.Type2SQLType(fieldType)
+	}
+
+	return true, core.Type2SQLType(fieldValue.FieldByName(fieldTable.PKColumns()[0].FieldName).Type())
 }
 
 // IsTableEmpty if a table has any reocrd
