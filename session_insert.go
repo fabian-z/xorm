@@ -217,19 +217,19 @@ func (session *Session) innerInsertMulti(rowsSlicePtr interface{}) (int64, error
 		temp := fmt.Sprintf(") INTO %s (%v%v%v) VALUES (",
 			session.Engine.Quote(session.Statement.TableName()),
 			session.Engine.QuoteStr(),
-			strings.Join(colNames, session.Engine.QuoteStr() + ", " + session.Engine.QuoteStr()),
+			strings.Join(colNames, session.Engine.QuoteStr()+", "+session.Engine.QuoteStr()),
 			session.Engine.QuoteStr())
 		statement = fmt.Sprintf(sql,
 			session.Engine.Quote(session.Statement.TableName()),
 			session.Engine.QuoteStr(),
-			strings.Join(colNames, session.Engine.QuoteStr() + ", " + session.Engine.QuoteStr()),
+			strings.Join(colNames, session.Engine.QuoteStr()+", "+session.Engine.QuoteStr()),
 			session.Engine.QuoteStr(),
 			strings.Join(colMultiPlaces, temp))
 	} else {
 		statement = fmt.Sprintf(sql,
 			session.Engine.Quote(session.Statement.TableName()),
 			session.Engine.QuoteStr(),
-			strings.Join(colNames, session.Engine.QuoteStr() + ", " + session.Engine.QuoteStr()),
+			strings.Join(colNames, session.Engine.QuoteStr()+", "+session.Engine.QuoteStr()),
 			session.Engine.QuoteStr(),
 			strings.Join(colMultiPlaces, "),("))
 	}
@@ -325,8 +325,8 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 		// remove the expr columns
 		for i, colName := range colNames {
 			if colName == v.colName {
-				colNames = append(colNames[:i], colNames[i + 1:]...)
-				args = append(args[:i], args[i + 1:]...)
+				colNames = append(colNames[:i], colNames[i+1:]...)
+				args = append(args[:i], args[i+1:]...)
 			}
 		}
 
@@ -335,11 +335,11 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 		exprColVals = append(exprColVals, v.expr)
 	}
 
-	colPlaces := strings.Repeat("?, ", len(colNames) - len(exprColumns))
+	colPlaces := strings.Repeat("?, ", len(colNames)-len(exprColumns))
 	if len(exprColVals) > 0 {
 		colPlaces = colPlaces + strings.Join(exprColVals, ", ")
 	} else {
-		colPlaces = colPlaces[0 : len(colPlaces) - 2]
+		colPlaces = colPlaces[0 : len(colPlaces)-2]
 	}
 
 	sqlStr := fmt.Sprintf("INSERT INTO %s (%v%v%v) VALUES (%v)",
