@@ -343,7 +343,7 @@ func (engine *Engine) DBMetas() ([]*core.Table, error) {
 	}
 
 	for _, table := range tables {
-		colSeq, cols, err := engine.dialect.GetColumns(table.Name)
+		colSeq, cols, foreignKeys, err := engine.dialect.GetColumns(table.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -355,6 +355,7 @@ func (engine *Engine) DBMetas() ([]*core.Table, error) {
 			return nil, err
 		}
 		table.Indexes = indexes
+		table.ForeignKeys = append(table.ForeignKeys, foreignKeys...)
 
 		for _, index := range indexes {
 			for _, name := range index.Cols {
