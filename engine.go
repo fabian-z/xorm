@@ -966,8 +966,16 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 						if foreignKey != nil {
 							engine.logger.Debug("Got foreign key:", fieldType.Name())
 							//GetStructKeyType maps the struct table if not done yet
-							foreignKey.TableName = engine.TableMapper.Obj2Table(fieldType.Name())
-							table.ForeignKeys[col.Name] = foreignKey
+							fkTable := engine.TableMapper.Obj2Table(fieldType.Name())
+
+							fk := core.ForeignKey{ColumnName:[]string{col.Name},
+								TargetTable: fkTable,
+								TargetColumn: []string{foreignKey.Name},
+								UpdateAction: "CASCADE",
+								DeleteAction: "RESTRICT"}
+
+
+							table.ForeignKeys = append(table.ForeignKeys, fk)
 						}
 
 						col.SQLType = keyType
@@ -1010,9 +1018,16 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 					foreignKey, keyType := engine.GetStructKey(fieldValue)
 					if foreignKey != nil {
 						engine.logger.Debug("Got foreign key:", fieldType.Name())
-						//GetStructKeyType maps the struct table if not done yet
-						foreignKey.TableName = engine.TableMapper.Obj2Table(fieldType.Name())
-						table.ForeignKeys[columnName] = foreignKey
+						fkTable := engine.TableMapper.Obj2Table(fieldType.Name())
+
+						fk := core.ForeignKey{ColumnName:[]string{col.Name},
+							TargetTable: fkTable,
+							TargetColumn: []string{foreignKey.Name},
+							UpdateAction: "CASCADE",
+							DeleteAction: "RESTRICT"}
+
+
+						table.ForeignKeys = append(table.ForeignKeys, fk)
 					}
 
 					sqlType = keyType
