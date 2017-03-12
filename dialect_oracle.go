@@ -678,7 +678,7 @@ func (db *oracle) IsColumnExist(tableName, colName string) (bool, error) {
 	return false, nil
 }
 
-func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
+func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
 	args := []interface{}{tableName}
 	s := "SELECT column_name,data_default,data_type,data_length,data_precision,data_scale," +
 		"nullable FROM USER_TAB_COLUMNS WHERE table_name = :1"
@@ -686,7 +686,7 @@ func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Colum
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 
@@ -702,7 +702,7 @@ func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Colum
 		err = rows.Scan(&colName, &colDefault, &dataType, &dataLen, &dataPrecision,
 			&dataScale, &nullable)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		col.Name = strings.Trim(*colName, `" `)
@@ -759,7 +759,7 @@ func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Colum
 		}
 
 		if _, ok := core.SqlTypes[col.SQLType.Name]; !ok {
-			return nil, nil, fmt.Errorf("Unknown colType %v %v", *dataType, col.SQLType)
+			return nil, nil, nil, fmt.Errorf("Unknown colType %v %v", *dataType, col.SQLType)
 		}
 
 		col.Length = dataLen
@@ -773,7 +773,7 @@ func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Colum
 		colSeq = append(colSeq, col.Name)
 	}
 
-	return colSeq, cols, nil
+	return colSeq, cols, nil, nil
 }
 
 func (db *oracle) GetTables() ([]*core.Table, error) {

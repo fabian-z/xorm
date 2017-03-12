@@ -296,7 +296,7 @@ func (db *mysql) TableCheckSql(tableName string) (string, []interface{}) {
 	return sql, args
 }
 
-func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
+func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
 	args := []interface{}{db.DbName, tableName}
 	s := "SELECT `COLUMN_NAME`, `IS_NULLABLE`, `COLUMN_DEFAULT`, `COLUMN_TYPE`," +
 		" `COLUMN_KEY`, `EXTRA` FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
@@ -304,7 +304,7 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 
@@ -318,7 +318,7 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 		var colDefault *string
 		err = rows.Scan(&columnName, &isNullable, &colDefault, &colType, &colKey, &extra)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		col.Name = strings.Trim(columnName, "` ")
 		if "YES" == isNullable {
@@ -358,12 +358,12 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 				lens := strings.Split(cts[1][0:idx], ",")
 				len1, err = strconv.Atoi(strings.TrimSpace(lens[0]))
 				if err != nil {
-					return nil, nil, err
+					return nil, nil, nil, err
 				}
 				if len(lens) == 2 {
 					len2, err = strconv.Atoi(lens[1])
 					if err != nil {
-						return nil, nil, err
+						return nil, nil, nil, err
 					}
 				}
 			}
@@ -376,7 +376,7 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 		if _, ok := core.SqlTypes[colType]; ok {
 			col.SQLType = core.SQLType{Name: colType, DefaultLength: len1, DefaultLength2: len2}
 		} else {
-			return nil, nil, fmt.Errorf("Unknown colType %v", colType)
+			return nil, nil, nil, fmt.Errorf("Unknown colType %v", colType)
 		}
 
 		if colKey == "PRI" {
@@ -402,7 +402,7 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 		cols[col.Name] = col
 		colSeq = append(colSeq, col.Name)
 	}
-	return colSeq, cols, nil
+	return colSeq, cols, nil, nil
 }
 
 func (db *mysql) GetTables() ([]*core.Table, error) {

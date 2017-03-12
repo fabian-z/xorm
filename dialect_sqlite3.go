@@ -282,13 +282,14 @@ func (db *sqlite3) IsColumnExist(tableName, colName string) (bool, error) {
 	return false, nil
 }
 
-func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
+
+func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
 	args := []interface{}{tableName}
 	s := "SELECT sql FROM sqlite_master WHERE type='table' and name = ?"
 	db.LogSQL(s, args)
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 
@@ -296,13 +297,13 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 	for rows.Next() {
 		err = rows.Scan(&name)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		break
 	}
 
 	if name == "" {
-		return nil, nil, errors.New("no table named " + tableName)
+		return nil, nil, nil, errors.New("no table named " + tableName)
 	}
 
 	nStart := strings.Index(name, "(")

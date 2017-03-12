@@ -918,7 +918,7 @@ func (db *postgres) IsColumnExist(tableName, colName string) (bool, error) {
 	return rows.Next(), nil
 }
 
-func (db *postgres) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
+func (db *postgres) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
 	// FIXME: the schema should be replaced by user custom's
 	args := []interface{}{tableName, "public"}
 	s := `SELECT column_name, column_default, is_nullable, data_type, character_maximum_length, numeric_precision, numeric_precision_radix ,
@@ -936,7 +936,7 @@ WHERE c.relkind = 'r'::char AND c.relname = $1 AND s.table_schema = $2 AND f.att
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 
@@ -952,7 +952,7 @@ WHERE c.relkind = 'r'::char AND c.relname = $1 AND s.table_schema = $2 AND f.att
 		var isPK, isUnique bool
 		err = rows.Scan(&colName, &colDefault, &isNullable, &dataType, &maxLenStr, &numPrecision, &numRadix, &isPK, &isUnique)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		//fmt.Println(args, colName, isNullable, dataType, maxLenStr, colDefault, numPrecision, numRadix, isPK, isUnique)
@@ -960,7 +960,7 @@ WHERE c.relkind = 'r'::char AND c.relname = $1 AND s.table_schema = $2 AND f.att
 		if maxLenStr != nil {
 			maxLen, err = strconv.Atoi(*maxLenStr)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 		}
 
@@ -999,7 +999,7 @@ WHERE c.relkind = 'r'::char AND c.relname = $1 AND s.table_schema = $2 AND f.att
 			col.SQLType = core.SQLType{Name: strings.ToUpper(dataType), DefaultLength: 0, DefaultLength2: 0}
 		}
 		if _, ok := core.SqlTypes[col.SQLType.Name]; !ok {
-			return nil, nil, fmt.Errorf("Unknown colType: %v", dataType)
+			return nil, nil, nil, fmt.Errorf("Unknown colType: %v", dataType)
 		}
 
 		col.Length = maxLen
@@ -1017,7 +1017,7 @@ WHERE c.relkind = 'r'::char AND c.relname = $1 AND s.table_schema = $2 AND f.att
 		colSeq = append(colSeq, col.Name)
 	}
 
-	return colSeq, cols, nil
+	return colSeq, cols, nil, nil
 }
 
 func (db *postgres) GetTables() ([]*core.Table, error) {

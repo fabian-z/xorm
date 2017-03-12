@@ -332,7 +332,7 @@ func (db *mssql) TableCheckSql(tableName string) (string, []interface{}) {
 	return sql, args
 }
 
-func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
+func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
 	args := []interface{}{}
 	s := `select a.name as name, b.name as ctype,a.max_length,a.precision,a.scale,a.is_nullable as nullable,
 	      replace(replace(isnull(c.text,''),'(',''),')','') as vdefault   
@@ -343,7 +343,7 @@ func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 
@@ -355,7 +355,7 @@ func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column
 		var nullable bool
 		err = rows.Scan(&name, &ctype, &maxLen, &precision, &scale, &nullable, &vdefault)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		col := new(core.Column)
@@ -381,7 +381,7 @@ func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column
 			if _, ok := core.SqlTypes[ct]; ok {
 				col.SQLType = core.SQLType{Name: ct, DefaultLength: 0, DefaultLength2: 0}
 			} else {
-				return nil, nil, fmt.Errorf("Unknown colType %v for %v - %v", ct, tableName, col.Name)
+				return nil, nil, nil, fmt.Errorf("Unknown colType %v for %v - %v", ct, tableName, col.Name)
 			}
 		}
 
@@ -397,7 +397,7 @@ func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column
 		cols[col.Name] = col
 		colSeq = append(colSeq, col.Name)
 	}
-	return colSeq, cols, nil
+	return colSeq, cols, nil, nil
 }
 
 func (db *mssql) GetTables() ([]*core.Table, error) {
