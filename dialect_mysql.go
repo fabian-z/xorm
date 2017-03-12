@@ -403,32 +403,49 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 		colSeq = append(colSeq, col.Name)
 	}
 
-
-	argsFk := []interface{}{db.DbName, tableName}
-	queryFk := "SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME " +
+	argsKeyCol := []interface{}{db.DbName, tableName}
+	queryKeyCol := "SELECT COLUMN_NAME,CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME " +
 		"FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE " +
-		"WHERE REFERENCED_TABLE_SCHEMA = ? AND TABLE_NAME = ?;"
-	db.LogSQL(queryFk, argsFk)
+		"WHERE REFERENCED_TABLE_NAME IS NOT NULL AND TABLE_SCHEMA = ? AND TABLE_NAME = ?;"
+	db.LogSQL(queryKeyCol, argsKeyCol)
 
-	rowsFk, err := db.DB().Query(queryFk, argsFk...)
+	rowsKeyCol, err := db.DB().Query(queryKeyCol, argsKeyCol...)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	defer rowsFk.Close()
+	defer rowsKeyCol.Close()
 
 	var foreignKeys []core.ForeignKey
-	for rowsFk.Next() {
-		var columnName, refTableName, refColumnName string
-		err = rowsFk.Scan(&columnName, &refTableName, &refColumnName)
+	constraintMap := make(map[string]*core.ForeignKey)
+	for rowsKeyCol.Next() {
+		var columnName, constraintName, refTableName, refColumnName string
+		err = rowsKeyCol.Scan(&columnName, &constraintName, &refTableName, &refColumnName)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		foreignKeys = append(foreignKeys, core.ForeignKey{
-			ColumnName: []string{columnName},
-			TargetTable: refTableName,
+		constraintMap[constraintName] = &core.ForeignKey{
+			ColumnName:   []string{columnName},
+			TargetTable:  refTableName,
 			TargetColumn: []string{refColumnName},
-			//TODO how to get actions? handle composite columns?
-		})
+			//TODO how to handle composite columns?
+		}
+	}
+
+	for constraint, foreignKey := range constraintMap {
+		argsFk := []interface{}{db.DbName, constraint}
+		queryFk := "SELECT UPDATE_RULE, DELETE_RULE " +
+			"FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS " +
+			"WHERE CONSTRAINT_SCHEMA = ? AND CONSTRAINT_NAME = ?;"
+		db.LogSQL(queryFk, argsFk)
+
+		rowsFk := db.DB().QueryRow(queryFk, argsFk...)
+
+		err = rowsFk.Scan(foreignKey.UpdateAction, foreignKey.DeleteAction)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		foreignKeys = append(foreignKeys, *foreignKey)
 	}
 
 	return colSeq, cols, foreignKeys, nil
