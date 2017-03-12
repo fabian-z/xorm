@@ -620,3 +620,50 @@ func getFlagForColumn(m map[string]bool, col *core.Column) (val bool, has bool) 
 
 	return false, false
 }
+
+// sortTablesByForeignKeys implements a naive foreign key dependency resolution for tables
+func sortTablesByForeignKeys(tables []*core.Table) (sortTables []*core.Table) {
+
+	allTables := make(map[string]*core.Table)
+	sortedTables := make(map[string]struct{})
+
+	// tables without FK constraints first
+	for _, t := range tables {
+		if len(t.ForeignKeys) == 0 {
+			sortTables = append(sortTables, t)
+			sortedTables[t.Name] = struct{}{}
+		} else {
+			allTables[t.Name] = t
+		}
+	}
+
+	var recursionCount int
+
+	for len(allTables) > 0 && recursionCount <= 150 {
+		for k, t := range allTables {
+			foreignTablesExist := true
+			for _, fk := range t.ForeignKeys {
+				if _, ok := sortedTables[fk.TargetTable]; !ok {
+					foreignTablesExist = false
+					break
+				}
+			}
+			if foreignTablesExist {
+				sortTables = append(sortTables, t)
+				sortedTables[t.Name] = struct{}{}
+				delete(allTables, k)
+			}
+		}
+		recursionCount++
+	}
+
+	//Append unsorted tables left after reaching recursion count
+	if len(allTables) > 0 {
+		for _, t := range allTables {
+			sortTables = append(sortTables, t)
+		}
+	}
+
+	return
+
+}

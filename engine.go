@@ -427,8 +427,13 @@ func (engine *Engine) dumpTables(tables []*core.Table, w io.Writer, tp ...core.D
 		return err
 	}
 
+	tables = sortTablesByForeignKeys(tables)
+
+	//Create tables, indexes and foreign keys first
+	fkSqlBuf := new(bytes.Buffer)
+
 	for i, table := range tables {
-		// TODO support foreign keys when dumping table structure here
+
 		if i > 0 {
 			_, err = io.WriteString(w, "\n")
 			if err != nil {
@@ -439,8 +444,51 @@ func (engine *Engine) dumpTables(tables []*core.Table, w io.Writer, tp ...core.D
 		if err != nil {
 			return err
 		}
+		indexes := make(map[string]struct{})
 		for _, index := range table.Indexes {
+			indexes[index.Name] = struct{}{}
 			_, err = io.WriteString(w, dialect.CreateIndexSql(table.Name, index)+";\n")
+			if err != nil {
+				return err
+			}
+		}
+		for _, foreignKey := range table.ForeignKeys {
+
+			indexName := "FK_IDX_" + table.Name + "_" + foreignKey.ColumnName[0]
+
+			if _, ok := indexes[indexName]; !ok {
+				indexFk := &core.Index{IsRegular: true, Name: indexName, Type: core.IndexType, Cols: foreignKey.ColumnName}
+
+				_, err = io.WriteString(w, dialect.CreateIndexSql(table.Name, indexFk)+";\n")
+				if err != nil {
+					return err
+				}
+			}
+
+			_, err = io.WriteString(fkSqlBuf, dialect.CreateForeignKeySql(table.Name, foreignKey)+";\n")
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+	_, err = io.WriteString(w, "\n")
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(w, fkSqlBuf)
+	if err != nil {
+		return err
+	}
+	_, err = io.WriteString(w, "\n")
+	if err != nil {
+		return err
+	}
+
+	for i, table := range tables {
+
+		if i > 0 {
+			_, err = io.WriteString(w, "\n")
 			if err != nil {
 				return err
 			}
