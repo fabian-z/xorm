@@ -678,7 +678,7 @@ func (db *oracle) IsColumnExist(tableName, colName string) (bool, error) {
 	return false, nil
 }
 
-func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
+func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Column, []*core.ForeignKey, error) {
 	args := []interface{}{tableName}
 	s := "SELECT column_name,data_default,data_type,data_length,data_precision,data_scale," +
 		"nullable FROM USER_TAB_COLUMNS WHERE table_name = :1"

@@ -332,7 +332,7 @@ func (db *mssql) TableCheckSql(tableName string) (string, []interface{}) {
 	return sql, args
 }
 
-func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
+func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column, []*core.ForeignKey, error) {
 	args := []interface{}{}
 	s := `select a.name as name, b.name as ctype,a.max_length,a.precision,a.scale,a.is_nullable as nullable,
 	      replace(replace(isnull(c.text,''),'(',''),')','') as vdefault   

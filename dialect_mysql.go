@@ -296,7 +296,7 @@ func (db *mysql) TableCheckSql(tableName string) (string, []interface{}) {
 	return sql, args
 }
 
-func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
+func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column, []*core.ForeignKey, error) {
 	args := []interface{}{db.DbName, tableName}
 	s := "SELECT `COLUMN_NAME`, `IS_NULLABLE`, `COLUMN_DEFAULT`, `COLUMN_TYPE`," +
 		" `COLUMN_KEY`, `EXTRA` FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
@@ -415,7 +415,7 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 	}
 	defer rowsKeyCol.Close()
 
-	var foreignKeys []core.ForeignKey
+	var foreignKeys []*core.ForeignKey
 	constraintMap := make(map[string]*core.ForeignKey)
 	for rowsKeyCol.Next() {
 		var columnName, constraintName, refTableName, refColumnName string
@@ -440,12 +440,16 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 
 		rowsFk := db.DB().QueryRow(queryFk, argsFk...)
 
-		err = rowsFk.Scan(foreignKey.UpdateAction, foreignKey.DeleteAction)
+		var updateAction, deleteAction string
+		err = rowsFk.Scan(&updateAction, &deleteAction)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 
-		foreignKeys = append(foreignKeys, *foreignKey)
+		foreignKey.UpdateAction = updateAction
+		foreignKey.DeleteAction = deleteAction
+
+		foreignKeys = append(foreignKeys, foreignKey)
 	}
 
 	return colSeq, cols, foreignKeys, nil

@@ -282,8 +282,7 @@ func (db *sqlite3) IsColumnExist(tableName, colName string) (bool, error) {
 	return false, nil
 }
 
-
-func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
+func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Column, []*core.ForeignKey, error) {
 	args := []interface{}{tableName}
 	s := "SELECT sql FROM sqlite_master WHERE type='table' and name = ?"
 	db.LogSQL(s, args)
@@ -312,7 +311,7 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 	colCreates := reg.FindAllString(name[nStart+1:nEnd], -1)
 	cols := make(map[string]*core.Column)
 	colSeq := make([]string, 0)
-	var foreignKeys []core.ForeignKey
+	var foreignKeys []*core.ForeignKey
 	var foreignKey *core.ForeignKey
 	quotedField := regexp.MustCompile("`(.+?)`")
 	for _, colStr := range colCreates {
@@ -328,7 +327,7 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 
 				if field == "FOREIGN" {
 					if foreignKey != nil {
-						foreignKeys = append(foreignKeys, *foreignKey)
+						foreignKeys = append(foreignKeys, foreignKey)
 					}
 					fmt.Println("creating foreign key")
 					foreignKey = new(core.ForeignKey)
@@ -404,7 +403,7 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 				if len(fields) < idx+2 {
 					return nil, nil, nil, errors.New("incorrectly formed foreign key action " + tableName)
 				}
-				switch (fields[idx+1]) {
+				switch fields[idx+1] {
 				case "UPDATE":
 					foreignKey.UpdateAction = fields[idx+2]
 				case "DELETE":
@@ -424,7 +423,7 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 		}
 	}
 	if foreignKey != nil {
-		foreignKeys = append(foreignKeys, *foreignKey)
+		foreignKeys = append(foreignKeys, foreignKey)
 		foreignKey = nil
 	}
 	return colSeq, cols, foreignKeys, nil

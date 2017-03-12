@@ -918,7 +918,7 @@ func (db *postgres) IsColumnExist(tableName, colName string) (bool, error) {
 	return rows.Next(), nil
 }
 
-func (db *postgres) GetColumns(tableName string) ([]string, map[string]*core.Column, []core.ForeignKey, error) {
+func (db *postgres) GetColumns(tableName string) ([]string, map[string]*core.Column, []*core.ForeignKey, error) {
 	// FIXME: the schema should be replaced by user custom's
 	args := []interface{}{tableName, "public"}
 	s := `SELECT column_name, column_default, is_nullable, data_type, character_maximum_length, numeric_precision, numeric_precision_radix ,

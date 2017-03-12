@@ -354,7 +354,7 @@ func (engine *Engine) DBMetas() ([]*core.Table, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		table.Indexes = indexes
 		table.ForeignKeys = append(table.ForeignKeys, foreignKeys...)
 
@@ -970,12 +970,11 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 							//GetStructKeyType maps the struct table if not done yet
 							fkTable := engine.TableMapper.Obj2Table(fieldType.Name())
 
-							fk := core.ForeignKey{ColumnName:[]string{col.Name},
-								TargetTable: fkTable,
+							fk := &core.ForeignKey{ColumnName: []string{col.Name},
+								TargetTable:  fkTable,
 								TargetColumn: []string{foreignKey.Name},
 								UpdateAction: "CASCADE",
 								DeleteAction: "RESTRICT"}
-
 
 							table.ForeignKeys = append(table.ForeignKeys, fk)
 						}
@@ -1022,12 +1021,11 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 						engine.logger.Debug("Got foreign key:", fieldType.Name())
 						fkTable := engine.TableMapper.Obj2Table(fieldType.Name())
 
-						fk := core.ForeignKey{ColumnName:[]string{col.Name},
-							TargetTable: fkTable,
+						fk := &core.ForeignKey{ColumnName: []string{col.Name},
+							TargetTable:  fkTable,
 							TargetColumn: []string{foreignKey.Name},
 							UpdateAction: "CASCADE",
 							DeleteAction: "RESTRICT"}
-
 
 						table.ForeignKeys = append(table.ForeignKeys, fk)
 					}
