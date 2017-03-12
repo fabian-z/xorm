@@ -354,6 +354,7 @@ func (engine *Engine) DBMetas() ([]*core.Table, error) {
 		if err != nil {
 			return nil, err
 		}
+		
 		table.Indexes = indexes
 		table.ForeignKeys = append(table.ForeignKeys, foreignKeys...)
 
