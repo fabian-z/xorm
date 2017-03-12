@@ -1037,6 +1037,20 @@ func (statement *Statement) genCreateTableSQL() string {
 		statement.StoreEngine, statement.Charset)
 }
 
+func (statement *Statement) genForeignKeySQL() []string {
+	var sqls []string
+	tbName := statement.TableName()
+	for _, foreignKey := range statement.RefTable.ForeignKeys {
+		indexName := "FK_IDX_" + tbName + "_" + foreignKey.ColumnName[0]
+		indexFk := &core.Index{IsRegular: true, Name: indexName, Type: core.IndexType, Cols: foreignKey.ColumnName}
+
+		sqlIndex := statement.Engine.dialect.CreateIndexSql(tbName, indexFk)
+		sql := statement.Engine.dialect.CreateForeignKeySql(tbName, foreignKey)
+		sqls = append(sqls, sqlIndex, sql)
+	}
+	return sqls
+}
+
 func (statement *Statement) genIndexSQL() []string {
 	var sqls []string
 	tbName := statement.TableName()

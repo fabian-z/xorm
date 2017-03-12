@@ -77,6 +77,26 @@ func (session *Session) CreateUniques(bean interface{}) error {
 	return nil
 }
 
+// CreateForeignKeys creates foreigns keys for the given table
+func (session *Session) CreateForeignKeys(bean interface{}) error {
+	v := rValue(bean)
+	session.Statement.setRefValue(v)
+
+	defer session.resetStatement()
+	if session.IsAutoClose {
+		defer session.Close()
+	}
+
+	sqls := session.Statement.genForeignKeySQL()
+	for _, sqlStr := range sqls {
+		_, err := session.exec(sqlStr)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (session *Session) createOneTable() error {
 	sqlStr := session.Statement.genCreateTableSQL()
 	_, err := session.exec(sqlStr)
@@ -336,6 +356,12 @@ func (session *Session) Sync2(beans ...interface{}) error {
 			if err != nil {
 				return err
 			}
+
+			err = session.CreateForeignKeys(bean)
+			if err != nil {
+				return err
+			}
+
 		} else {
 			for _, col := range table.Columns() {
 				var oriCol *core.Column
