@@ -1018,6 +1018,10 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 						foreignKey, keyType := engine.GetStructKey(fieldValue)
 						if foreignKey != nil {
 							engine.logger.Debug("Got foreign key:", fieldType.Name())
+							if !engine.dialect.SupportForeignKeys() {
+								engine.logger.Infof("Current db engine does not support foreign keys, reference(s) in '%s' will be unchecked",
+									fieldType.Name())
+							}
 							//GetStructKeyType maps the struct table if not done yet
 							fkTable := engine.TableMapper.Obj2Table(fieldType.Name())
 
@@ -1070,6 +1074,10 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 					foreignKey, keyType := engine.GetStructKey(fieldValue)
 					if foreignKey != nil {
 						engine.logger.Debug("Got foreign key:", fieldType.Name())
+						if !engine.dialect.SupportForeignKeys() {
+							engine.logger.Infof("Current db engine does not support foreign keys, reference(s) in '%s' will be unchecked",
+								fieldType.Name())
+						}
 						fkTable := engine.TableMapper.Obj2Table(fieldType.Name())
 
 						fk := &core.ForeignKey{ColumnName: []string{col.Name},
