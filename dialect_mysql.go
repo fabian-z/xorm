@@ -423,12 +423,18 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		constraintMap[constraintName] = &core.ForeignKey{
-			ColumnName:   []string{columnName},
-			TargetTable:  refTableName,
-			TargetColumn: []string{refColumnName},
-			//TODO how to handle composite columns?
+
+		if compConstraint, ok := constraintMap[constraintName]; ok {
+			compConstraint.ColumnName = append(compConstraint.ColumnName, columnName)
+			compConstraint.TargetColumn = append(compConstraint.TargetColumn, refColumnName)
+		} else {
+			constraintMap[constraintName] = &core.ForeignKey{
+				ColumnName:   []string{columnName},
+				TargetTable:  refTableName,
+				TargetColumn: []string{refColumnName},
+			}
 		}
+
 	}
 
 	for constraint, foreignKey := range constraintMap {
