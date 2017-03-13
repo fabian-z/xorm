@@ -152,10 +152,6 @@ type sqlite3 struct {
 }
 
 func (db *sqlite3) Init(d *core.DB, uri *core.Uri, drivername, dataSourceName string) error {
-	_, err := d.DB.Exec("PRAGMA foreign_keys = ON;")
-	if err != nil {
-		return err
-	}
 	return db.Base.Init(d, db, uri, drivername, dataSourceName)
 }
 
