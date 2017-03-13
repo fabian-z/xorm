@@ -1017,7 +1017,104 @@ WHERE c.relkind = 'r'::char AND c.relname = $1 AND s.table_schema = $2 AND f.att
 		colSeq = append(colSeq, col.Name)
 	}
 
-	return colSeq, cols, nil, nil
+	argsFk := []interface{}{tableName, "public"}
+	queryFk := `
+	SELECT
+		fk_att.attname AS "fk_column",
+		pclass.relname AS "target_table",
+		tgt_att.attname AS "target_column",
+		conname,
+		confupdtype,
+		confdeltype
+	FROM (
+			SELECT
+				unnest (fkc.conkey) AS "target",
+				unnest (fkc.confkey) AS "source",
+				fkc.confrelid,
+				fkc.conrelid,
+				fkc.conname,
+				fkc.confupdtype,
+				fkc.confdeltype
+			FROM
+				pg_class pclass
+				JOIN pg_namespace ns ON pclass.relnamespace = ns.oid
+				JOIN pg_constraint fkc ON fkc.conrelid = pclass.oid
+			WHERE
+				pclass.relname = $1
+				AND ns.nspname = $2
+				AND fkc.contype = 'f')
+		con
+		JOIN pg_attribute tgt_att ON tgt_att.attrelid = con.confrelid
+		AND tgt_att.attnum = con.source
+		JOIN pg_class pclass ON pclass.oid = con.confrelid
+		JOIN pg_attribute fk_att ON fk_att.attrelid = con.conrelid
+		AND fk_att.attnum = con.target`
+
+	db.LogSQL(queryFk, argsFk)
+
+	rowsFk, err := db.DB().Query(queryFk, argsFk...)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer rowsFk.Close()
+
+	var foreignKeys []*core.ForeignKey
+	constraintMap := make(map[string]*core.ForeignKey)
+
+	for rowsFk.Next() {
+		var childColumn, parentTable, parentColumn, constraintName, updateTypeCode, deleteTypeCode string
+		err = rowsFk.Scan(&childColumn, &parentTable, &parentColumn, &constraintName, &updateTypeCode, &deleteTypeCode)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		var updateType string
+		switch updateTypeCode {
+		case "a":
+			updateType = "NO ACTION"
+		case "r":
+			updateType = "RESTRICT"
+		case "c":
+			updateType = "CASCADE"
+		case "n":
+			updateType = "SET NULL"
+		case "d":
+			updateType = "SET DEFAULT"
+		}
+
+		var deleteType string
+		switch deleteTypeCode {
+		case "a":
+			deleteType = "NO ACTION"
+		case "r":
+			deleteType = "RESTRICT"
+		case "c":
+			deleteType = "CASCADE"
+		case "n":
+			deleteType = "SET NULL"
+		case "d":
+			deleteType = "SET DEFAULT"
+		}
+
+		if compConstraint, ok := constraintMap[constraintName]; ok {
+			compConstraint.ColumnName = append(compConstraint.ColumnName, childColumn)
+			compConstraint.TargetColumn = append(compConstraint.TargetColumn, parentColumn)
+		} else {
+			constraintMap[constraintName] = &core.ForeignKey{
+				ColumnName:   []string{childColumn},
+				TargetTable:  parentTable,
+				TargetColumn: []string{parentColumn},
+				UpdateAction: updateType,
+				DeleteAction: deleteType,
+			}
+		}
+	}
+
+	for _, foreignKey := range constraintMap {
+		foreignKeys = append(foreignKeys, foreignKey)
+	}
+
+	return colSeq, cols, foreignKeys, nil
 }
 
 func (db *postgres) GetTables() ([]*core.Table, error) {
