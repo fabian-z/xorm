@@ -315,9 +315,6 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 	colCreates := reg.FindAllString(name[nStart+1:nEnd], -1)
 	cols := make(map[string]*core.Column)
 	colSeq := make([]string, 0)
-	var foreignKeys []*core.ForeignKey
-	var foreignKey *core.ForeignKey
-	quotedField := regexp.MustCompile("`(.+?)`")
 	for _, colStr := range colCreates {
 		reg = regexp.MustCompile(`,\s`)
 		colStr = reg.ReplaceAllString(colStr, ",")
@@ -328,65 +325,10 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 		col.DefaultIsEmpty = true
 		for idx, field := range fields {
 			if idx == 0 {
-
-				if field == "FOREIGN" {
-					if foreignKey != nil {
-						foreignKeys = append(foreignKeys, foreignKey)
-					}
-					fmt.Println("creating foreign key")
-					foreignKey = new(core.ForeignKey)
-					continue
-				}
-
-				if field != "ON" {
-					col.Name = strings.Trim(strings.Trim(field, "`[] "), `"`)
-					continue
-				}
-
+				col.Name = strings.Trim(strings.Trim(field, "`[] "), `"`)
+				continue
 			} else if idx == 1 {
-				if foreignKey != nil {
-					if fields[idx-1] == "FOREIGN" && field != "KEY" {
-						return nil, nil, nil, errors.New("incorrectly formed foreign key " + tableName)
-					}
-					if fields[idx-1] == "REFERENCES" {
-						fs := quotedField.FindAllStringSubmatch(field, -1)
-						if len(fs) < 2 {
-							return nil, nil, nil, errors.New("incorrectly formed foreign key reference " + tableName)
-						}
-						foreignKey.TargetTable = strings.Trim(fs[0][1], "`")
-
-						for k, v := range fs {
-							if k == 0 {
-								continue
-							}
-							if len(v) != 2 {
-								return nil, nil, nil, errors.New("incorrectly formed foreign key reference " + tableName)
-							}
-							foreignKey.TargetColumn = append(foreignKey.TargetColumn, v[1])
-						}
-					}
-
-					continue
-				}
-
 				col.SQLType = core.SQLType{Name: field, DefaultLength: 0, DefaultLength2: 0}
-			} else if idx == 2 {
-				if foreignKey != nil {
-					if fields[idx-1] == "KEY" {
-						keys := quotedField.FindAllStringSubmatch(field, -1)
-						if len(keys) < 1 {
-							return nil, nil, nil, errors.New("incorrectly formed foreign key reference " + tableName)
-						}
-						for _, v := range keys {
-							if len(v) != 2 {
-								return nil, nil, nil, errors.New("incorrectly formed foreign key reference " + tableName)
-							}
-							foreignKey.ColumnName = append(foreignKey.ColumnName, v[1])
-						}
-						continue
-					}
-				}
-
 			}
 			switch field {
 			case "PRIMARY":
@@ -402,35 +344,15 @@ func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Colu
 			case "DEFAULT":
 				col.Default = fields[idx+1]
 				col.DefaultIsEmpty = false
-			case "ON":
-				fmt.Println(field, fields[idx+1], fields[idx+2])
-				if len(fields) < idx+2 {
-					return nil, nil, nil, errors.New("incorrectly formed foreign key action " + tableName)
-				}
-				switch fields[idx+1] {
-				case "UPDATE":
-					foreignKey.UpdateAction = fields[idx+2]
-				case "DELETE":
-					foreignKey.DeleteAction = fields[idx+2]
-				default:
-					return nil, nil, nil, errors.New("incorrectly formed foreign key action " + tableName)
-
-				}
 			}
 		}
-		if foreignKey == nil {
-			if !col.SQLType.IsNumeric() && !col.DefaultIsEmpty {
-				col.Default = "'" + col.Default + "'"
-			}
-			cols[col.Name] = col
-			colSeq = append(colSeq, col.Name)
+		if !col.SQLType.IsNumeric() && !col.DefaultIsEmpty {
+			col.Default = "'" + col.Default + "'"
 		}
+		cols[col.Name] = col
+		colSeq = append(colSeq, col.Name)
 	}
-	if foreignKey != nil {
-		foreignKeys = append(foreignKeys, foreignKey)
-		foreignKey = nil
-	}
-	return colSeq, cols, foreignKeys, nil
+	return colSeq, cols, nil, nil
 }
 
 func (db *sqlite3) GetTables() ([]*core.Table, error) {
