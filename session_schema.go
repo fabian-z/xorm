@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 
+	"encoding/json"
 	"github.com/go-xorm/core"
 )
 
@@ -271,6 +272,18 @@ func (session *Session) addColumn(colName string) error {
 	return err
 }
 
+func (session *Session) addForeignKey(tableName string, foreignKey *core.ForeignKey) error {
+	defer session.resetStatement()
+	if session.IsAutoClose {
+		defer session.Close()
+	}
+
+	sqlStr := session.Engine.dialect.CreateForeignKeySql(tableName, foreignKey)
+
+	_, err := session.exec(sqlStr)
+	return err
+}
+
 func (session *Session) addIndex(tableName, idxName string) error {
 	defer session.resetStatement()
 	if session.IsAutoClose {
@@ -433,6 +446,13 @@ func (session *Session) Sync2(beans ...interface{}) error {
 				}
 			}
 
+			for _, v := range table.ForeignKeys {
+				//Expect foreign key constraint indexes
+				indexName := "FK_IDX_" + table.Name + "_" + v.ColumnName[0]
+				indexFk := &core.Index{IsRegular: true, Name: indexName, Type: core.IndexType, Cols: v.ColumnName}
+				table.Indexes[indexName] = indexFk
+			}
+
 			var foundIndexNames = make(map[string]bool)
 			var addedNames = make(map[string]*core.Index)
 
@@ -486,6 +506,57 @@ func (session *Session) Sync2(beans ...interface{}) error {
 					defer session.Close()
 					err = session.addIndex(tbName, name)
 				}
+				if err != nil {
+					return err
+				}
+			}
+
+			//sync fk constraints
+
+			var foundFKConstraints = make(map[string]struct{})
+			var addedFKConstraints = make(map[string]*core.ForeignKey)
+
+			for _, fk := range table.ForeignKeys {
+				var oriFK *core.ForeignKey
+				fkId, err := json.Marshal(fk)
+				if err != nil {
+					return err
+				}
+				for _, fk2 := range oriTable.ForeignKeys {
+					if fk.Equal(fk2) {
+						foundFKConstraints[string(fkId)] = struct{}{}
+						oriFK = fk2
+						break
+					}
+				}
+
+				if oriFK == nil {
+					addedFKConstraints[string(fkId)] = fk
+				}
+			}
+
+			for _, fk2 := range oriTable.ForeignKeys {
+				fk2Id, err := json.Marshal(fk2)
+				if err != nil {
+					return err
+				}
+
+				if _, ok := foundFKConstraints[string(fk2Id)]; !ok {
+					sql := engine.dialect.DropForeignKeySql(tbName, fk2)
+					_, err = engine.Exec(sql)
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+			for _, fkNew := range addedFKConstraints {
+				session := engine.NewSession()
+				session.Statement.RefTable = table
+				session.Statement.tableName = tbName
+				defer session.Close()
+				err = session.addForeignKey(tbName, fkNew)
+
 				if err != nil {
 					return err
 				}
