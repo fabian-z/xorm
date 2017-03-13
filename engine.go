@@ -1017,7 +1017,6 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 					if fieldType.Kind() == reflect.Struct {
 						foreignKey, keyType := engine.GetStructKey(fieldValue)
 						if foreignKey != nil {
-							engine.logger.Debug("Got foreign key:", fieldType.Name())
 							if !engine.dialect.SupportForeignKeys() {
 								engine.logger.Infof("Current db engine does not support foreign keys, reference(s) in '%s' will be unchecked",
 									fieldType.Name())
@@ -1073,7 +1072,6 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 					var keyType core.SQLType
 					foreignKey, keyType := engine.GetStructKey(fieldValue)
 					if foreignKey != nil {
-						engine.logger.Debug("Got foreign key:", fieldType.Name())
 						if !engine.dialect.SupportForeignKeys() {
 							engine.logger.Infof("Current db engine does not support foreign keys, reference(s) in '%s' will be unchecked",
 								fieldType.Name())
