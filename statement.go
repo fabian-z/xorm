@@ -1041,7 +1041,8 @@ func (statement *Statement) genForeignKeySQL() []string {
 	var sqls []string
 	tbName := statement.TableName()
 	for _, foreignKey := range statement.RefTable.ForeignKeys {
-		indexName := "FK_IDX_" + tbName + "_" + foreignKey.ColumnName[0]
+
+		indexName, _ := foreignKey.Name(tbName)
 		indexFk := &core.Index{IsRegular: true, Name: indexName, Type: core.IndexType, Cols: foreignKey.ColumnName}
 
 		sqlIndex := statement.Engine.dialect.CreateIndexSql(tbName, indexFk)

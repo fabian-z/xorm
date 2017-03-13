@@ -456,7 +456,7 @@ func (engine *Engine) dumpTables(tables []*core.Table, w io.Writer, tp ...core.D
 		if dialect.SupportForeignKeys() {
 			for _, foreignKey := range table.ForeignKeys {
 
-				indexName := "FK_IDX_" + table.Name + "_" + foreignKey.ColumnName[0]
+				indexName, _ := foreignKey.Name(table.Name)
 
 				if _, ok := indexes[indexName]; !ok {
 					indexFk := &core.Index{IsRegular: true, Name: indexName, Type: core.IndexType, Cols: foreignKey.ColumnName}

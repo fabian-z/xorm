@@ -11,7 +11,6 @@ import (
 	"reflect"
 	"strings"
 
-	"encoding/json"
 	"github.com/go-xorm/core"
 )
 
@@ -448,7 +447,7 @@ func (session *Session) Sync2(beans ...interface{}) error {
 
 			for _, v := range table.ForeignKeys {
 				//Expect foreign key constraint indexes
-				indexName := "FK_IDX_" + table.Name + "_" + v.ColumnName[0]
+				indexName, _ := v.Name(table.Name)
 				indexFk := &core.Index{IsRegular: true, Name: indexName, Type: core.IndexType, Cols: v.ColumnName}
 				table.Indexes[indexName] = indexFk
 			}
@@ -518,10 +517,7 @@ func (session *Session) Sync2(beans ...interface{}) error {
 
 			for _, fk := range table.ForeignKeys {
 				var oriFK *core.ForeignKey
-				fkId, err := json.Marshal(fk)
-				if err != nil {
-					return err
-				}
+				_, fkId := fk.Name("")
 				for _, fk2 := range oriTable.ForeignKeys {
 					if fk.Equal(fk2) {
 						foundFKConstraints[string(fkId)] = struct{}{}
@@ -536,11 +532,7 @@ func (session *Session) Sync2(beans ...interface{}) error {
 			}
 
 			for _, fk2 := range oriTable.ForeignKeys {
-				fk2Id, err := json.Marshal(fk2)
-				if err != nil {
-					return err
-				}
-
+				_, fk2Id := fk2.Name("")
 				if _, ok := foundFKConstraints[string(fk2Id)]; !ok {
 					sql := engine.dialect.DropForeignKeySql(tbName, fk2)
 					_, err = engine.Exec(sql)
