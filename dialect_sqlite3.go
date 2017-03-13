@@ -226,6 +226,10 @@ func (db *sqlite3) SupportCharset() bool {
 	return false
 }
 
+func (db *sqlite3) SupportForeignKeys() bool {
+	return false
+}
+
 func (db *sqlite3) IndexOnTable() bool {
 	return false
 }

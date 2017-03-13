@@ -357,9 +357,11 @@ func (session *Session) Sync2(beans ...interface{}) error {
 				return err
 			}
 
-			err = session.CreateForeignKeys(bean)
-			if err != nil {
-				return err
+			if session.Engine.dialect.SupportForeignKeys() {
+				err = session.CreateForeignKeys(bean)
+				if err != nil {
+					return err
+				}
 			}
 
 		} else {
