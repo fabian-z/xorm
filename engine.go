@@ -576,11 +576,15 @@ func (engine *Engine) dumpTables(tables []*core.Table, w io.Writer, tp ...core.D
 			if err != nil {
 				return err
 			}
+
 		}
 
 		// FIXME: Hack for postgres
-		if string(dialect.DBType()) == core.POSTGRES && table.AutoIncrColumn() != nil {
-			_, err = io.WriteString(w, "SELECT setval('table_id_seq', COALESCE((SELECT MAX("+table.AutoIncrColumn().Name+") FROM "+dialect.Quote(table.Name)+"), 1), false);\n")
+
+		aiColumn := table.AutoIncrColumn()
+		if string(dialect.DBType()) == core.POSTGRES && aiColumn != nil {
+			sequenceName := table.Name + "_" + aiColumn.Name + "_seq"
+			_, err = io.WriteString(w, "SELECT setval('"+sequenceName+"', COALESCE((SELECT MAX("+table.AutoIncrColumn().Name+") FROM "+dialect.Quote(table.Name)+"), 1), false);\n")
 			if err != nil {
 				return err
 			}
