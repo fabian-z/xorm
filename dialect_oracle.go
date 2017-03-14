@@ -571,6 +571,10 @@ func (db *oracle) SupportDropIfExists() bool {
 	return false
 }
 
+func (db *oracle) SupportForeignKeys() bool {
+	return false
+}
+
 func (db *oracle) IndexOnTable() bool {
 	return false
 }

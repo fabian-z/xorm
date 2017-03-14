@@ -290,6 +290,10 @@ func (db *mssql) SupportEngine() bool {
 	return false
 }
 
+func (db *mssql) SupportForeignKeys() bool {
+	return false
+}
+
 func (db *mssql) AutoIncrStr() string {
 	return "IDENTITY"
 }
