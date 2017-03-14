@@ -404,9 +404,24 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 	}
 
 	argsKeyCol := []interface{}{db.DbName, tableName}
-	queryKeyCol := "SELECT COLUMN_NAME,CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME " +
-		"FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE " +
-		"WHERE REFERENCED_TABLE_NAME IS NOT NULL AND TABLE_SCHEMA = ? AND TABLE_NAME = ?;"
+	queryKeyCol := `
+	SELECT	column_name,
+			key_column_usage.constraint_name,
+			key_column_usage.referenced_table_name,
+			referenced_column_name,
+			update_rule,
+			delete_rule
+	FROM	information_schema.key_column_usage
+	JOIN	information_schema.referential_constraints
+			ON	key_column_usage.constraint_name =
+				referential_constraints.constraint_name
+			AND	key_column_usage.constraint_schema =
+				referential_constraints.constraint_schema
+	WHERE	key_column_usage.referenced_table_name IS NOT NULL
+			AND referential_constraints.referenced_table_name IS NOT NULL
+			AND key_column_usage.table_schema = ?
+			AND key_column_usage.table_name = ?;`
+
 	db.LogSQL(queryKeyCol, argsKeyCol)
 
 	rowsKeyCol, err := db.DB().Query(queryKeyCol, argsKeyCol...)
@@ -418,8 +433,8 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 	var foreignKeys []*core.ForeignKey
 	constraintMap := make(map[string]*core.ForeignKey)
 	for rowsKeyCol.Next() {
-		var columnName, constraintName, refTableName, refColumnName string
-		err = rowsKeyCol.Scan(&columnName, &constraintName, &refTableName, &refColumnName)
+		var columnName, constraintName, refTableName, refColumnName, updateRule, deleteRule string
+		err = rowsKeyCol.Scan(&columnName, &constraintName, &refTableName, &refColumnName, &updateRule, &deleteRule)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -432,29 +447,14 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 				ColumnName:   []string{columnName},
 				TargetTable:  refTableName,
 				TargetColumn: []string{refColumnName},
+				UpdateAction: updateRule,
+				DeleteAction: deleteRule,
 			}
 		}
 
 	}
 
-	for constraint, foreignKey := range constraintMap {
-		argsFk := []interface{}{db.DbName, constraint}
-		queryFk := "SELECT UPDATE_RULE, DELETE_RULE " +
-			"FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS " +
-			"WHERE CONSTRAINT_SCHEMA = ? AND CONSTRAINT_NAME = ?;"
-		db.LogSQL(queryFk, argsFk)
-
-		rowsFk := db.DB().QueryRow(queryFk, argsFk...)
-
-		var updateAction, deleteAction string
-		err = rowsFk.Scan(&updateAction, &deleteAction)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		foreignKey.UpdateAction = updateAction
-		foreignKey.DeleteAction = deleteAction
-
+	for _, foreignKey := range constraintMap {
 		foreignKeys = append(foreignKeys, foreignKey)
 	}
 
