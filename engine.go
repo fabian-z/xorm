@@ -427,7 +427,10 @@ func (engine *Engine) dumpTables(tables []*core.Table, w io.Writer, tp ...core.D
 		return err
 	}
 
-	tables = sortTablesByForeignKeys(tables)
+	tables, err = sortTablesByForeignKeys(tables)
+	if err != nil {
+		return err
+	}
 
 	for i, table := range tables {
 		if i > 0 {

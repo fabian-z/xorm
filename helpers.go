@@ -621,47 +621,52 @@ func getFlagForColumn(m map[string]bool, col *core.Column) (val bool, has bool) 
 	return false, false
 }
 
-// sortTablesByForeignKeys implements a naive foreign key dependency resolution for tables
-func sortTablesByForeignKeys(tables []*core.Table) (sortTables []*core.Table) {
+// sortTablesByForeignKeys implements foreign key dependency resolution for tables
+func sortTablesByForeignKeys(tables []*core.Table) (sortTables []*core.Table, err error) {
 
-	allTables := make(map[string]*core.Table)
-	sortedTables := make(map[string]struct{})
+	queue := make(chan *core.Table, len(tables))
+	tablesByDependency := make(map[string][]*core.Table)
+	tablesLoaded := make(map[string]*core.Table)
 
-	// tables without FK constraints first
 	for _, t := range tables {
 		if len(t.ForeignKeys) == 0 {
-			sortTables = append(sortTables, t)
-			sortedTables[t.Name] = struct{}{}
+			queue <- t
 		} else {
-			allTables[t.Name] = t
+			for _, fk := range t.ForeignKeys {
+				if _, ok := tablesByDependency[fk.TargetTable]; !ok {
+					tablesByDependency[fk.TargetTable] = []*core.Table{t}
+				} else {
+					tablesByDependency[fk.TargetTable] = append(tablesByDependency[fk.TargetTable], t)
+				}
+			}
 		}
 	}
 
-	var recursionCount int
+	for len(queue) > 0 {
 
-	for len(allTables) > 0 && recursionCount <= 150 {
-		for k, t := range allTables {
-			foreignTablesExist := true
-			for _, fk := range t.ForeignKeys {
-				if _, ok := sortedTables[fk.TargetTable]; !ok {
-					foreignTablesExist = false
+		table := <-queue
+		tablesLoaded[table.Name] = table
+		sortTables = append(sortTables, table)
+
+		for _, resolveTable := range tablesByDependency[table.Name] {
+
+			var satisfied bool = true
+
+			for _, resolveDependency := range resolveTable.ForeignKeys {
+				if _, ok := tablesLoaded[resolveDependency.TargetTable]; !ok {
+					satisfied = false
 					break
 				}
 			}
-			if foreignTablesExist {
-				sortTables = append(sortTables, t)
-				sortedTables[t.Name] = struct{}{}
-				delete(allTables, k)
+
+			if satisfied {
+				queue <- resolveTable
 			}
 		}
-		recursionCount++
 	}
 
-	//Append unsorted tables left after reaching recursion count
-	if len(allTables) > 0 {
-		for _, t := range allTables {
-			sortTables = append(sortTables, t)
-		}
+	if len(tables) != len(sortTables) {
+		err = errors.New("Circular dependencies detected for " + strconv.Itoa(len(tables)-len(sortTables)) + " tables")
 	}
 
 	return
