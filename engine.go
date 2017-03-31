@@ -1184,6 +1184,33 @@ func (engine *Engine) GetStructKey(fieldValue reflect.Value) (*core.Column, core
 	return fieldTable.GetColumn(keyFieldName), core.Type2SQLType(fieldValue.FieldByName(keyFieldName).Type()), nil
 }
 
+// sortBeansByForeignKeys is a helper function that calls sortTables
+func (engine *Engine) sortBeansByForeignKeys(beans ...interface{}) ([]interface{}, error) {
+
+	var tables []*core.Table
+	var beanMap = make(map[*core.Table]interface{})
+	for _, bean := range beans {
+		t := engine.autoMapType(rValue(bean))
+		if t != nil {
+			tables = append(tables, t)
+			beanMap[t] = bean
+		}
+	}
+
+	sortedTables, err := sortTablesByForeignKeys(tables)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var sortBeans []interface{}
+	for _, t := range sortedTables {
+		sortBeans = append(sortBeans, beanMap[t])
+	}
+
+	return sortBeans, nil
+}
+
 // IsTableEmpty if a table has any reocrd
 func (engine *Engine) IsTableEmpty(bean interface{}) (bool, error) {
 	session := engine.NewSession()
@@ -1307,6 +1334,13 @@ func (engine *Engine) ClearCache(beans ...interface{}) error {
 // table, column, index, unique. but will not delete or change anything.
 // If you change some field, you should change the database manually.
 func (engine *Engine) Sync(beans ...interface{}) error {
+
+	beans, err := engine.sortBeansByForeignKeys(beans...)
+
+	if err != nil {
+		return err
+	}
+
 	for _, bean := range beans {
 		v := rValue(bean)
 		tableName := engine.tbName(v)
@@ -1399,6 +1433,13 @@ func (engine *Engine) Sync(beans ...interface{}) error {
 
 // Sync2 synchronize structs to database tables
 func (engine *Engine) Sync2(beans ...interface{}) error {
+
+	beans, err := engine.sortBeansByForeignKeys(beans...)
+
+	if err != nil {
+		return err
+	}
+
 	s := engine.NewSession()
 	defer s.Close()
 	return s.Sync2(beans...)
@@ -1435,10 +1476,17 @@ func (engine *Engine) dropAll() error {
 
 // CreateTables create tabls according bean
 func (engine *Engine) CreateTables(beans ...interface{}) error {
+
+	beans, err := engine.sortBeansByForeignKeys(beans...)
+
+	if err != nil {
+		return err
+	}
+
 	session := engine.NewSession()
 	defer session.Close()
 
-	err := session.Begin()
+	err = session.Begin()
 	if err != nil {
 		return err
 	}
@@ -1455,15 +1503,27 @@ func (engine *Engine) CreateTables(beans ...interface{}) error {
 
 // DropTables drop specify tables
 func (engine *Engine) DropTables(beans ...interface{}) error {
-	session := engine.NewSession()
-	defer session.Close()
 
-	err := session.Begin()
+	beans, err := engine.sortBeansByForeignKeys(beans...)
+
 	if err != nil {
 		return err
 	}
 
-	for _, bean := range beans {
+	var reverseBeans []interface{}
+	for i := len(beans) - 1; i >= 0; i-- {
+		reverseBeans = append(reverseBeans, beans[i])
+	}
+
+	session := engine.NewSession()
+	defer session.Close()
+
+	err = session.Begin()
+	if err != nil {
+		return err
+	}
+
+	for _, bean := range reverseBeans {
 		err = session.DropTable(bean)
 		if err != nil {
 			session.Rollback()
