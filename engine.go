@@ -996,7 +996,12 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 				if col.SQLType.Name == "" {
 
 					if fieldType.Kind() == reflect.Struct {
-						foreignKey, keyType := engine.GetStructKey(fieldValue)
+						foreignKey, keyType, err := engine.GetStructKey(fieldValue)
+
+						if err != nil {
+							return nil, err
+						}
+
 						if foreignKey != nil {
 							if !engine.dialect.SupportForeignKeys() {
 								engine.logger.Infof("Current db engine does not support foreign keys, reference(s) in '%s' will be unchecked",
@@ -1051,7 +1056,12 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 			} else {
 				if fieldType.Kind() == reflect.Struct {
 					var keyType core.SQLType
-					foreignKey, keyType := engine.GetStructKey(fieldValue)
+					foreignKey, keyType, err := engine.GetStructKey(fieldValue)
+
+					if err != nil {
+						return nil, err
+					}
+
 					if foreignKey != nil {
 						if !engine.dialect.SupportForeignKeys() {
 							engine.logger.Infof("Current db engine does not support foreign keys, reference(s) in '%s' will be unchecked",
@@ -1116,18 +1126,18 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 // GetStructKeyType searches a reflect.Value representing a struct for primary key fields.
 // Returns a column pointer when the struct has exactly one usable primary key value and nil otherwise.
 // The SQLType returned will default to type returned by core.Type2SQLType for the struct type.
-func (engine *Engine) GetStructKey(fieldValue reflect.Value) (*core.Column, core.SQLType) {
+// Error is not nil only when a hard error condition occurs, which should stop further processing
+func (engine *Engine) GetStructKey(fieldValue reflect.Value) (*core.Column, core.SQLType, error) {
 	fieldType := fieldValue.Type()
 
 	if fieldType.Kind() != reflect.Struct {
-		engine.logger.Error("GetStructKeyType called with non-struct value")
-		return nil, core.Type2SQLType(fieldType)
+		return nil, core.Type2SQLType(fieldType), errors.New("GetStructKeyType called with non-struct value")
 	}
 
 	if fieldType.PkgPath() == "" {
 		//excludes unnamed structs
 		engine.logger.Debugf("Unnamed struct as reference: %s\n", fieldValue.Type().String())
-		return nil, core.Type2SQLType(fieldType)
+		return nil, core.Type2SQLType(fieldType), nil
 	}
 
 	for i := 0; i < fieldType.NumField(); i++ {
@@ -1135,14 +1145,20 @@ func (engine *Engine) GetStructKey(fieldValue reflect.Value) (*core.Column, core
 
 		if field.PkgPath != "" {
 			//excludes structs with unexported fields (time.Time, etc.)
-			return nil, core.Type2SQLType(fieldType)
+			return nil, core.Type2SQLType(fieldType), nil
 		}
 	}
 
 	//cannot use autoMapType because the map lock is already held here
 	fieldTable, ok := engine.Tables[fieldType]
 	if !ok {
-		fieldTable = engine.mapType(fieldValue)
+		var err error
+		fieldTable, err = engine.mapType(fieldValue)
+
+		if err != nil {
+			return nil, core.Type2SQLType(fieldType), fmt.Errorf("Error mapping referenced struct: %v", err)
+		}
+
 		engine.Tables[fieldType] = fieldTable
 		if engine.Cacher != nil {
 			if fieldValue.CanAddr() {
@@ -1155,17 +1171,17 @@ func (engine *Engine) GetStructKey(fieldValue reflect.Value) (*core.Column, core
 
 	if len(fieldTable.PrimaryKeys) == 0 {
 		engine.logger.Warnf("No suitable primary key for struct type '%v', falling back to text column reference.\n", fieldValue.Type().String())
-		return nil, core.Type2SQLType(fieldType)
+		return nil, core.Type2SQLType(fieldType), nil
 	}
 
 	if len(fieldTable.PrimaryKeys) > 1 {
 		engine.logger.Warnf("Multiple primary keys for struct type '%v', falling back to text column reference.\n", fieldValue.Type().String())
-		return nil, core.Type2SQLType(fieldType)
+		return nil, core.Type2SQLType(fieldType), nil
 	}
 
 	keyFieldName := fieldTable.PKColumns()[0].FieldName
 
-	return fieldTable.GetColumn(keyFieldName), core.Type2SQLType(fieldValue.FieldByName(keyFieldName).Type())
+	return fieldTable.GetColumn(keyFieldName), core.Type2SQLType(fieldValue.FieldByName(keyFieldName).Type()), nil
 }
 
 // IsTableEmpty if a table has any reocrd
